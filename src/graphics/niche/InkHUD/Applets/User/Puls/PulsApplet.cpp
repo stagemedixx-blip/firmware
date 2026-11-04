@@ -195,7 +195,7 @@ void InkHUD::PulsApplet::zeichneRuhe()
     const int16_t box = Y(0.30);
     const int16_t boxX = 4;
     fillRect(boxX, oben, box, box, BLACK);
-    setFont(FREESANS_24PT_WIN1253); // große Ziffer (nur ASCII)
+    setFont(AppletFont(FreeSans24pt_Win1253, AppletFont::WINDOWS_1253, -5, 3)); // große Ziffer (nur ASCII)
     setTextColor(WHITE);
     std::string ziffer = code ? std::string(1, code) : std::string("-");
     printThick(boxX + box / 2, oben + box / 2, ziffer, 2, 2);
