@@ -7,6 +7,10 @@
 #include "RTC.h"
 #include "Router.h"
 #include "buzz.h"
+#include "mesh/SinglePortModule.h"
+#include "modules/PositionModule.h"
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace PulsEdition
@@ -32,6 +36,62 @@ uint32_t alarmZeit = 0;
 uint32_t alarmMillis = 0;
 void (*geaendert)() = nullptr;
 
+
+// Befehle von PULS über Port 256 (PRIVATE_APP), nur von der Basisstation (Favorit) bzw. ohne Favorit vom eigenen Kanal:
+//   "GPS <Sek.>"  Positions-Takt einstellen (30–1800 s), Antwort "GPS <Sek.>"
+//   "POS"         aktuelle Position sofort schicken
+class PulsModul : public SinglePortModule
+{
+  public:
+    PulsModul() : SinglePortModule("puls", meshtastic_PortNum_PRIVATE_APP) {}
+
+  protected:
+    ProcessMessage handleReceived(const meshtastic_MeshPacket &mp) override
+    {
+        if (mp.from == nodeDB->getNodeNum() || mp.to != nodeDB->getNodeNum())
+            return ProcessMessage::CONTINUE;
+        const NodeNum b = basisstation();
+        if (b && mp.from != b)
+            return ProcessMessage::CONTINUE;
+
+        char t[33] = {0};
+        size_t n = mp.decoded.payload.size < 32 ? mp.decoded.payload.size : 32;
+        memcpy(t, mp.decoded.payload.bytes, n);
+
+        if (strncmp(t, "GPS ", 4) == 0) {
+            long sek = strtol(t + 4, nullptr, 10);
+            if (sek < 30)
+                sek = 30;
+            if (sek > 1800)
+                sek = 1800;
+            const uint32_t gps = sek < 60 ? (uint32_t)sek : 60; // GPS misst mindestens jede Minute frisch
+            if (config.position.position_broadcast_secs != (uint32_t)sek || config.position.gps_update_interval != gps) {
+                config.position.position_broadcast_secs = sek;
+                config.position.gps_update_interval = gps;
+                nodeDB->saveToDisk(SEGMENT_CONFIG);
+                LOG_INFO("PULS: GPS-Takt %ld s", sek);
+            }
+            meshtastic_MeshPacket *r = allocDataPacket();
+            if (r) {
+                r->to = mp.from;
+                r->channel = mp.channel;
+                r->want_ack = false;
+                int len = snprintf((char *)r->decoded.payload.bytes, sizeof(r->decoded.payload.bytes), "GPS %ld", sek);
+                r->decoded.payload.size = len > 0 ? len : 0;
+                service->sendToMesh(r, RX_SRC_LOCAL, false);
+            }
+            return ProcessMessage::STOP;
+        }
+        if (strncmp(t, "POS", 3) == 0) {
+            if (positionModule)
+                positionModule->sendOurPosition(mp.from, false, mp.channel);
+            return ProcessMessage::STOP;
+        }
+        return ProcessMessage::CONTINUE;
+    }
+};
+static PulsModul *pulsModul = nullptr;
+
 static void melden()
 {
     if (geaendert)
@@ -40,6 +100,9 @@ static void melden()
 
 void init()
 {
+    if (!pulsModul)
+        pulsModul = new PulsModul();
+
     // Nur auf frischen Geräten: lauter Dauer-Alarm bei Nachrichten mit Glocke, Displaylicht flackert
     if (!moduleConfig.external_notification.enabled) {
         moduleConfig.has_external_notification = true;
