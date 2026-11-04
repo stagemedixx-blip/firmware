@@ -15,6 +15,9 @@
 #include "graphics/niche/InkHUD/Applets/User/Heard/HeardApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/Positions/PositionsApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/RecentsList/RecentsListApplet.h"
+#ifdef PULS_EDITION
+#include "graphics/niche/InkHUD/Applets/User/Puls/PulsApplet.h"
+#endif
 #include "graphics/niche/InkHUD/Applets/User/ThreadedMessage/ThreadedMessageApplet.h"
 
 // Shared NicheGraphics components
@@ -71,6 +74,17 @@ void setupNicheGraphics()
     Drivers::LatchingBacklight *backlight = Drivers::LatchingBacklight::getInstance();
     backlight->setPin(PIN_EINK_EN);
 
+#ifdef PULS_EDITION
+    // PULS-Edition: Melder-Anzeige vorn und allein auf dem Bildschirm, Nachrichten als zweite Seite
+    inkhud->persistence->settings.userTiles.maxCount = 1;
+    inkhud->addApplet("PULS", new InkHUD::PulsApplet, true, true, 0);                  // Aktiv, Autoshow
+    inkhud->addApplet("All Messages", new InkHUD::AllMessageApplet, true, false);      // Aktiv
+    inkhud->addApplet("DMs", new InkHUD::DMApplet);                                    // -
+    inkhud->addApplet("Channel 0", new InkHUD::ThreadedMessageApplet(0));              // -
+    inkhud->addApplet("Positions", new InkHUD::PositionsApplet);                       // -
+    inkhud->addApplet("Heard", new InkHUD::HeardApplet);                               // -
+    inkhud->addApplet("Favorites Map", new InkHUD::FavoritesMapApplet, false, false);  // -
+#else
     // Pick applets
     // Note: order of applets determines priority of "auto-show" feature
     inkhud->addApplet("All Messages", new InkHUD::AllMessageApplet, true, true);      // Activated, autoshown
@@ -82,8 +96,13 @@ void setupNicheGraphics()
     inkhud->addApplet("Heard", new InkHUD::HeardApplet, true, false, 0);              // Activated, no autoshow, default on tile 0
     inkhud->addApplet("Favorites Map", new InkHUD::FavoritesMapApplet, false, false); // -
 
+#endif
+
     // Start running InkHUD
     inkhud->begin();
+#ifdef PULS_EDITION
+    PulsEdition::init();
+#endif
 
     // Buttons
     // --------------------------
@@ -109,7 +128,7 @@ void setupNicheGraphics()
     buttons->setHandlerDown(1, [backlight]() { backlight->peek(); });
     buttons->setHandlerLongPress(1, [backlight]() {
         backlight->latch();
-        PulsEdition::sende("0", true);
+        PulsEdition::notruf();
     });
     buttons->setHandlerShortPress(1, [backlight]() {
         if (backlight->isLatched())

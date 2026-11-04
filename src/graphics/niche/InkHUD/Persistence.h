@@ -29,7 +29,11 @@ class Persistence
 
     // Used to invalidate old settings, if needed
     // Version 0 is reserved for testing, and will always load defaults
+#ifdef PULS_EDITION
+    static constexpr uint32_t SETTINGS_VERSION = 1003; // PULS-Edition: eigene Anzeige-Grundeinstellungen
+#else
     static constexpr uint32_t SETTINGS_VERSION = 3;
+#endif
 
     struct Settings {
         struct Meta {

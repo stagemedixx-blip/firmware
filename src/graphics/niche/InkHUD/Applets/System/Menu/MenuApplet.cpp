@@ -72,8 +72,9 @@ void InkHUD::MenuApplet::onForeground()
     } else {
 #ifdef PULS_EDITION
         // PULS-Edition: Menü öffnet direkt die Statusliste, Auswahl steht auf dem ersten Status
+        // Vorauswahl = sinnvoller nächster Status (z. B. nach 3 kommt 4)
         showPage(MenuPage::SEND);
-        cursor = 0;
+        cursor = PulsEdition::vorschlag();
         cursorShown = !items.empty();
 #else
         showPage(MenuPage::ROOT);
@@ -365,8 +366,8 @@ void InkHUD::MenuApplet::execute(MenuItem item)
     case STORE_CANNEDMESSAGE_SELECTION:
 #ifdef PULS_EDITION
         // Status-Liste steht ganz oben: sofort an die Einsatzleitung senden, kein Empfänger-Menü
-        if (cursor < cm.messageItems.size()) {
-            PulsEdition::sende(cm.messageItems.at(cursor).rawText.c_str());
+        if (cursor < PulsEdition::ANZAHL_STATUS) {
+            PulsEdition::sendeStatus(cursor);
             inkhud->forceUpdate(Drivers::EInk::UpdateTypes::FULL);
         }
         break;
@@ -1764,24 +1765,23 @@ void InkHUD::MenuApplet::populateRecentsPage()
 void InkHUD::MenuApplet::populateSendPage()
 {
 #ifdef PULS_EDITION
-    // PULS-Edition: zuerst die Status, danach Ping und das normale Menü
+    // PULS-Edition: feste Statusliste mit Bedeutung, danach Position, Einstellungen, Schließen
     {
-        uint8_t count = cm.store->size();
-        for (uint8_t i = 0; i < count; i++) {
-            CannedMessages::MessageItem messageItem;
-            messageItem.rawText = cm.store->at(i);
-            messageItem.label = parse(messageItem.rawText);
-            cm.messageItems.push_back(messageItem);
+        for (uint8_t i = 0; i < PulsEdition::ANZAHL_STATUS; i++) {
+            const PulsEdition::StatusEintrag &st = PulsEdition::STATUS[i];
+            std::string label;
+            if (st.code == PulsEdition::aktuellerStatus)
+                label = "» ";
+            if (st.code != 'P') {
+                label += st.code;
+                label += "  ";
+            }
+            label += st.text;
+            items.push_back(MenuItem(parse(label).c_str(), MenuAction::STORE_CANNEDMESSAGE_SELECTION, MenuPage::EXIT));
         }
-        for (uint8_t i = 0; i < cm.messageItems.size(); i++) {
-            std::string &label = cm.messageItems.at(i).label;
-            if (label.size() == 1 && label[0] >= '0' && label[0] <= '9')
-                label = std::string("Status ") + label + (label == "0" ? " NOTRUF" : label == "5" ? " Sprechw." : "");
-            items.push_back(MenuItem(label.c_str(), MenuAction::STORE_CANNEDMESSAGE_SELECTION, MenuPage::EXIT));
-        }
-        items.push_back(MenuItem("Ping", MenuAction::SEND_PING, MenuPage::EXIT));
-        items.push_back(MenuItem("Menu", MenuPage::ROOT));
-        items.push_back(MenuItem("Exit", MenuPage::EXIT));
+        items.push_back(MenuItem("Position senden", MenuAction::SEND_PING, MenuPage::EXIT));
+        items.push_back(MenuItem("Einstellungen", MenuPage::ROOT));
+        items.push_back(MenuItem(parse("Schließen").c_str(), MenuPage::EXIT));
         return;
     }
 #endif
