@@ -25,6 +25,7 @@
 
 // Button feedback
 #include "buzz.h"
+#include "graphics/niche/Utils/PulsEdition.h"
 
 void setupNicheGraphics()
 {
@@ -102,6 +103,22 @@ void setupNicheGraphics()
     // Labeled "Function Button" by manual
     // Todo: additional features
     buttons->setWiring(1, PIN_BUTTON1);
+#ifdef PULS_EDITION
+    // PULS-Edition: kurz = Licht an/aus, 3 Sekunden halten = NOTRUF an die Einsatzleitung
+    buttons->setTiming(1, 50, 3000);
+    buttons->setHandlerDown(1, [backlight]() { backlight->peek(); });
+    buttons->setHandlerLongPress(1, [backlight]() {
+        backlight->latch();
+        PulsEdition::sende("0", true);
+    });
+    buttons->setHandlerShortPress(1, [backlight]() {
+        if (backlight->isLatched())
+            backlight->off();
+        else
+            backlight->latch();
+        playChirp();
+    });
+#else
     buttons->setTiming(1, 50, 500); // 500ms before latch
     buttons->setHandlerDown(1, [backlight]() { backlight->peek(); });
     buttons->setHandlerLongPress(1, [backlight]() {
@@ -112,6 +129,7 @@ void setupNicheGraphics()
         backlight->off();
         playChirp();
     });
+#endif
 
     // Begin handling button events
     buttons->start();

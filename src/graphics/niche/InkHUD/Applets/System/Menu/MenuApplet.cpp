@@ -1,6 +1,7 @@
 #ifdef MESHTASTIC_INCLUDE_INKHUD
 
 #include "./MenuApplet.h"
+#include "graphics/niche/Utils/PulsEdition.h"
 
 #include "DisplayFormatters.h"
 #include "GPS.h"
@@ -69,7 +70,14 @@ void InkHUD::MenuApplet::onForeground()
         showPage(MenuPage::REGION);
 
     } else {
+#ifdef PULS_EDITION
+        // PULS-Edition: Menü öffnet direkt die Statusliste, Auswahl steht auf dem ersten Status
+        showPage(MenuPage::SEND);
+        cursor = 0;
+        cursorShown = !items.empty();
+#else
         showPage(MenuPage::ROOT);
+#endif
     }
 
     // If device has a backlight which isn't controlled by aux button:
@@ -355,6 +363,14 @@ void InkHUD::MenuApplet::execute(MenuItem item)
         break;
 
     case STORE_CANNEDMESSAGE_SELECTION:
+#ifdef PULS_EDITION
+        // Status-Liste steht ganz oben: sofort an die Einsatzleitung senden, kein Empfänger-Menü
+        if (cursor < cm.messageItems.size()) {
+            PulsEdition::sende(cm.messageItems.at(cursor).rawText.c_str());
+            inkhud->forceUpdate(Drivers::EInk::UpdateTypes::FULL);
+        }
+        break;
+#endif
         if (!settings->joystick.enabled || inkhud->twoWayRocker)
             cm.selectedMessageItem = &cm.messageItems.at(cursor - 1); // Minus one: offset for the initial "Send Ping" entry
         else
@@ -1747,6 +1763,28 @@ void InkHUD::MenuApplet::populateRecentsPage()
 // Dynamically creates menu items based on available canned messages
 void InkHUD::MenuApplet::populateSendPage()
 {
+#ifdef PULS_EDITION
+    // PULS-Edition: zuerst die Status, danach Ping und das normale Menü
+    {
+        uint8_t count = cm.store->size();
+        for (uint8_t i = 0; i < count; i++) {
+            CannedMessages::MessageItem messageItem;
+            messageItem.rawText = cm.store->at(i);
+            messageItem.label = parse(messageItem.rawText);
+            cm.messageItems.push_back(messageItem);
+        }
+        for (uint8_t i = 0; i < cm.messageItems.size(); i++) {
+            std::string &label = cm.messageItems.at(i).label;
+            if (label.size() == 1 && label[0] >= '0' && label[0] <= '9')
+                label = std::string("Status ") + label + (label == "0" ? " NOTRUF" : label == "5" ? " Sprechw." : "");
+            items.push_back(MenuItem(label.c_str(), MenuAction::STORE_CANNEDMESSAGE_SELECTION, MenuPage::EXIT));
+        }
+        items.push_back(MenuItem("Ping", MenuAction::SEND_PING, MenuPage::EXIT));
+        items.push_back(MenuItem("Menu", MenuPage::ROOT));
+        items.push_back(MenuItem("Exit", MenuPage::EXIT));
+        return;
+    }
+#endif
     // Position / NodeInfo packet
     items.push_back(MenuItem("Ping", MenuAction::SEND_PING, MenuPage::EXIT));
 
