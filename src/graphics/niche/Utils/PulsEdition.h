@@ -48,6 +48,9 @@ const char *statusText(char code);
 
 void alarmEmpfangen(const std::string &text);
 
+// Paket vom Handy (Trupp-App): Status bzw. Notruf übernehmen
+void vomTelefon(const meshtastic_MeshPacket &p);
+
 // Wird nach jeder Änderung aufgerufen (z. B. Anzeige neu zeichnen)
 extern void (*geaendert)();
 } // namespace PulsEdition

@@ -241,6 +241,34 @@ const char *statusText(char code)
     return "";
 }
 
+void vomTelefon(const meshtastic_MeshPacket &p)
+{
+    if (p.which_payload_variant != meshtastic_MeshPacket_decoded_tag)
+        return;
+    const auto &d = p.decoded;
+    std::string t((const char *)d.payload.bytes, d.payload.size);
+    if (d.portnum == meshtastic_PortNum_ALERT_APP) {
+        alarmOffen = false;
+        melden();
+        return;
+    }
+    if (d.portnum != meshtastic_PortNum_TEXT_MESSAGE_APP)
+        return;
+    char code = 0;
+    if (t == "Pause")
+        code = 'P';
+    else if (t.size() == 1 && t[0] >= '0' && t[0] <= '9')
+        code = t[0];
+    if (!code)
+        return;
+    if (code != '5' && code != '0') {
+        aktuellerStatus = code;
+        statusZeit = getTime();
+    }
+    alarmOffen = false;
+    melden();
+}
+
 void alarmEmpfangen(const std::string &text)
 {
     alarmText = text;

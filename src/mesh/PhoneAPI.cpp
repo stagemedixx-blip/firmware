@@ -10,6 +10,9 @@
 #include "NodeDB.h"
 #include "PacketHistory.h"
 #include "PhoneAPI.h"
+#if defined(PULS_EDITION)
+#include "graphics/niche/Utils/PulsEdition.h"
+#endif
 #include "PowerFSM.h"
 #include "RadioInterface.h"
 #include "Router.h"
@@ -815,6 +818,11 @@ bool PhoneAPI::wasSeenRecently(uint32_t id)
 bool PhoneAPI::handleToRadioPacket(meshtastic_MeshPacket &p)
 {
     printPacket("PACKET FROM PHONE", &p);
+
+#if defined(PULS_EDITION) && defined(MESHTASTIC_INCLUDE_NICHE_GRAPHICS)
+    // PULS-Trupp-App: Status, Notruf und Nachrichten vom Handy auch auf dem Melder-Display zeigen
+    PulsEdition::vomTelefon(p);
+#endif
 
 #if defined(ARCH_PORTDUINO)
     // For use with the simulator, we should not ignore duplicate packets from the phone
