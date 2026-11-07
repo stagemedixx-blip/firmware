@@ -37,9 +37,12 @@ uint32_t alarmMillis = 0;
 void (*geaendert)() = nullptr;
 
 
+static void melden();
+
 // Befehle von PULS über Port 256 (PRIVATE_APP), nur von der Basisstation (Favorit) bzw. ohne Favorit vom eigenen Kanal:
 //   "GPS <Sek.>"  Positions-Takt einstellen (30–1800 s), Antwort "GPS <Sek.>"
 //   "POS"         aktuelle Position sofort schicken
+//   "ST <Code>"   Status wurde in PULS gesetzt: anzeigen, Antwort "ST <Code>"
 class PulsModul : public SinglePortModule
 {
   public:
@@ -77,6 +80,25 @@ class PulsModul : public SinglePortModule
                 r->channel = mp.channel;
                 r->want_ack = false;
                 int len = snprintf((char *)r->decoded.payload.bytes, sizeof(r->decoded.payload.bytes), "GPS %ld", sek);
+                r->decoded.payload.size = len > 0 ? len : 0;
+                service->sendToMesh(r, RX_SRC_LOCAL, false);
+            }
+            return ProcessMessage::STOP;
+        }
+        if (strncmp(t, "ST ", 3) == 0 && t[3]) {
+            const char code = t[3];
+            if (code != '0' && code != '5' && statusText(code)[0]) {
+                aktuellerStatus = code;
+                statusZeit = getTime();
+                alarmOffen = false;
+                melden();
+            }
+            meshtastic_MeshPacket *r = allocDataPacket();
+            if (r) {
+                r->to = mp.from;
+                r->channel = mp.channel;
+                r->want_ack = false;
+                int len = snprintf((char *)r->decoded.payload.bytes, sizeof(r->decoded.payload.bytes), "ST %c", code);
                 r->decoded.payload.size = len > 0 ? len : 0;
                 service->sendToMesh(r, RX_SRC_LOCAL, false);
             }
